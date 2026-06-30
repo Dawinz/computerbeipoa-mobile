@@ -1,0 +1,43 @@
+# Computer Beipoa Mobile — Codemagic iOS App Store
+# Bundle ID: com.qwantumtech.computerbeipoa
+
+workflows:
+  ios-appstore:
+    name: iOS App Store
+    max_build_duration: 120
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: applestoreconnectkey
+    environment:
+      flutter: stable
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.qwantumtech.computerbeipoa
+      vars:
+        API_URL: https://api-production-32f72.up.railway.app/api/v1
+        WEB_URL: https://computerbeipoa.co.tz
+    scripts:
+      - name: Install Flutter dependencies
+        script: flutter pub get
+      - name: Install CocoaPods
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Build iOS IPA
+        script: |
+          set -e
+          flutter build ipa --release \
+            --dart-define=API_URL="$API_URL" \
+            --dart-define=WEB_URL="$WEB_URL"
+      - name: Stage IPA for publishing
+        script: |
+          set -e
+          mkdir -p codemagic_publish
+          rm -f codemagic_publish/*.ipa
+          cp -v build/ios/ipa/*.ipa codemagic_publish/
+          ls -la codemagic_publish/
+    artifacts:
+      - codemagic_publish/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

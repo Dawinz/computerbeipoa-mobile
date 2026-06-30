@@ -1,0 +1,23 @@
+# Dependencies / build
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+codemagic_publish/*.ipa
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Android
+**/android/**/GeneratedPluginRegistrant.*
+
+# Environment
+.env
+.env.*
