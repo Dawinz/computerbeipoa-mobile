@@ -11,21 +11,35 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      cocoapods: default
       ios_signing:
         distribution_type: app_store
         bundle_identifier: com.qwantumtech.computerbeipoa
       vars:
+        BUNDLE_ID: com.qwantumtech.computerbeipoa
         API_URL: https://api-production-32f72.up.railway.app/api/v1
         WEB_URL: https://computerbeipoa.co.tz
     scripts:
+      - name: Set up keychain for code signing
+        script: keychain initialize
+      - name: Fetch distribution certificate and provisioning profile
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+      - name: Set up code signing on Xcode project
+        script: xcode-project use-profiles
       - name: Install Flutter dependencies
         script: flutter pub get
       - name: Install CocoaPods
         script: find . -name "Podfile" -execdir pod install \;
-      - name: Build iOS IPA
+      - name: Build signed iOS IPA
         script: |
           set -e
           flutter build ipa --release \
+            --export-options-plist=/Users/builder/export_options.plist \
             --dart-define=API_URL="$API_URL" \
             --dart-define=WEB_URL="$WEB_URL"
       - name: Stage IPA for publishing
@@ -37,10 +51,11 @@ workflows:
           ls -la codemagic_publish/
     artifacts:
       - codemagic_publish/*.ipa
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
         auth: integration
-        # Skip TestFlight — submit straight to App Store review.
         submit_to_testflight: false
         submit_to_app_store: true
         cancel_previous_submissions: true

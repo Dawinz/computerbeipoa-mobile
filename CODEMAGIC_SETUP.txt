@@ -5,18 +5,30 @@ Repo:        Dawinz/computerbeipoa-mobile
 Bundle ID:   com.qwantumtech.computerbeipoa
 Display name: Computer Beipoa
 
-1. Codemagic
-   - https://codemagic.io → Add app → GitHub → Dawinz/computerbeipoa-mobile
-   - Enable "Use configuration from repository"
-   - Team Integrations → Developer Portal → API key label: applestoreconnectkey
+1. Codemagic — Apple integration (required for certs + upload)
+   - Team settings → Integrations → Developer Portal
+   - Upload App Store Connect API .p8 key
+   - Label MUST be exactly: applestoreconnectkey
+   - Role: App Manager or Admin
 
-2. Apple
+2. Apple Developer (one-time)
    - Register App ID: com.qwantumtech.computerbeipoa
-   - App Store Connect → New App with that bundle ID
+   - App Store Connect → create app with that bundle ID
 
-3. Build
+3. Codemagic app
+   - Add Dawinz/computerbeipoa-mobile
+   - Enable "Use configuration from repository"
    - Run workflow: iOS App Store
-   - Build uploads to App Store Connect and submits for **App Store review** (not TestFlight)
-   - On Apple approval, release is automatic (`release_type: AFTER_APPROVAL`)
 
-See CODEMAGIC_MOBILE_STORE_GUIDE.md for troubleshooting.
+4. Certificates (automatic per build)
+   codemagic.yaml runs:
+   - fetch-signing-files --type IOS_APP_STORE --create
+   - keychain add-certificates
+   - xcode-project use-profiles
+   No manual cert upload needed if the integration is set up.
+
+5. Publishing
+   - Submits to App Store review (not TestFlight)
+   - Auto-releases after Apple approval
+
+See CODEMAGIC_MOBILE_STORE_GUIDE.md for full details.
