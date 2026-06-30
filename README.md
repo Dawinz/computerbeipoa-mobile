@@ -38,7 +38,7 @@ flutter run
 1. Connect this repo in [Codemagic](https://codemagic.io) with **Use configuration from repository**
 2. Add Apple integration labeled **`applestoreconnectkey`**
 3. Register bundle ID **`com.qwantumtech.computerbeipoa`** in Apple Developer / App Store Connect
-4. Run workflow **iOS App Store**
+4. Run workflow **iOS App Store** — submits for App Store review (not TestFlight); auto-releases after approval
 
 See `CODEMAGIC_SETUP.txt` and `CODEMAGIC_MOBILE_STORE_GUIDE.md`.
 

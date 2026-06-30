@@ -19,11 +19,19 @@ Create the key in [App Store Connect → Integrations → App Store Connect API]
 
 ---
 
-## 2. Green build ≠ App Store upload
+## 2. Direct App Store (no TestFlight)
 
-You need **`publishing.app_store_connect`** in `codemagic.yaml` — not only `artifacts:`.
+`codemagic.yaml` sets:
 
-This repo copies IPAs to **`codemagic_publish/`** because **`build/`** is gitignored and Codemagic may skip it when publishing.
+```yaml
+submit_to_testflight: false
+submit_to_app_store: true
+release_type: AFTER_APPROVAL
+```
+
+Each green build is submitted for **App Store review**. When Apple approves, it releases automatically — no TestFlight beta step.
+
+**One-time:** App Store Connect must have the app record, screenshots, privacy policy URL, and category filled in before the first automated submission succeeds.
 
 ---
 
@@ -39,8 +47,8 @@ This repo copies IPAs to **`codemagic_publish/`** because **`build/`** is gitign
 
 ## 4. After a build
 
-1. Codemagic log shows App Store Connect **upload**, not artifacts-only
-2. TestFlight → build **Processing** → **Ready** (15–60+ min)
-3. Distribution → select build → Submit for Review
+1. Codemagic log shows App Store Connect **upload** and post-processing **submit_to_app_store**
+2. App Store Connect → app → status **Waiting for Review** → **In Review** → **Ready for Sale** (after approval)
+3. No TestFlight beta step — builds go straight to App Store review
 
 See `CODEMAGIC_SETUP.txt` for setup steps.

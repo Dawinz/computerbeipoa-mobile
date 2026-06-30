@@ -16,6 +16,7 @@ Display name: Computer Beipoa
 
 3. Build
    - Run workflow: iOS App Store
-   - Verify IPA upload + TestFlight processing
+   - Build uploads to App Store Connect and submits for **App Store review** (not TestFlight)
+   - On Apple approval, release is automatic (`release_type: AFTER_APPROVAL`)
 
 See CODEMAGIC_MOBILE_STORE_GUIDE.md for troubleshooting.

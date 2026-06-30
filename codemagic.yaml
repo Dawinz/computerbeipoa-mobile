@@ -40,4 +40,10 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
+        # Skip TestFlight — submit straight to App Store review.
+        submit_to_testflight: false
+        submit_to_app_store: true
+        cancel_previous_submissions: true
+        release_type: AFTER_APPROVAL
+        copyright: 2026 Qwantum Tech
+        phased_release: false
