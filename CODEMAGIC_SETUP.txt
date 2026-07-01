@@ -20,12 +20,9 @@ Display name: Computer Beipoa
    - Enable "Use configuration from repository"
    - Run workflow: iOS App Store
 
-4. Certificates (automatic per build)
-   codemagic.yaml runs:
-   - fetch-signing-files --type IOS_APP_STORE --create
-   - keychain add-certificates
-   - xcode-project use-profiles
-   No manual cert upload needed if the integration is set up.
+4. Certificates (automatic)
+   - Codemagic step "Set up code signing identities" + ios_signing in YAML
+   - Script: xcode-project use-profiles (no manual fetch-signing-files)
 
 5. Publishing
    - Submits to App Store review (not TestFlight)

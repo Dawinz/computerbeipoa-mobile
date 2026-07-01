@@ -20,15 +20,6 @@ workflows:
         API_URL: https://api-production-32f72.up.railway.app/api/v1
         WEB_URL: https://computerbeipoa.co.tz
     scripts:
-      - name: Set up keychain for code signing
-        script: keychain initialize
-      - name: Fetch distribution certificate and provisioning profile
-        script: |
-          app-store-connect fetch-signing-files "$BUNDLE_ID" \
-            --type IOS_APP_STORE \
-            --create
-      - name: Add certificates to keychain
-        script: keychain add-certificates
       - name: Set up code signing on Xcode project
         script: xcode-project use-profiles
       - name: Install Flutter dependencies

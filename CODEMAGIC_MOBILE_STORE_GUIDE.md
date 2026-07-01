@@ -29,30 +29,29 @@ A mismatch between the label in Codemagic and YAML produces **no upload** and **
 
 ## 2. Certificates and provisioning profiles (automatic)
 
-`codemagic.yaml` creates and fetches signing assets on every build:
+Codemagic fetches or creates signing files via the **Developer Portal integration** — do **not** mix this with manual `fetch-signing-files --create` in YAML (that causes *"Cannot save Signing Certificates without certificate private key"*).
 
 ```yaml
+integrations:
+  app_store_connect: applestoreconnectkey
+
 environment:
   ios_signing:
     distribution_type: app_store
     bundle_identifier: com.qwantumtech.computerbeipoa
 
 scripts:
-  - keychain initialize
-  - app-store-connect fetch-signing-files $BUNDLE_ID --type IOS_APP_STORE --create
-  - keychain add-certificates
   - xcode-project use-profiles
   - flutter build ipa --export-options-plist=/Users/builder/export_options.plist
 ```
 
-- **`--create`** — Codemagic creates the **distribution certificate** and **App Store provisioning profile** via the API if they do not exist yet.
-- **`ios_signing`** — tells Codemagic which bundle ID and distribution type to match.
-- **`xcode-project use-profiles`** — applies profiles to the Xcode project and writes `export_options.plist`.
-- **`distribution_type: app_store`** — required for App Store / production IPAs (not ad_hoc or development).
+- **`Set up code signing identities`** (automatic Codemagic step) uses the integration to fetch/create certs and profiles.
+- **`ios_signing`** must match bundle ID **`com.qwantumtech.computerbeipoa`** and `distribution_type: app_store`.
+- **`xcode-project use-profiles`** applies them and writes `export_options.plist`.
 
-**Apple side (one-time):** register App ID **`com.qwantumtech.computerbeipoa`** in [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list) before the first build.
+**Apple side (one-time):** register App ID **`com.qwantumtech.computerbeipoa`** in [developer.apple.com](https://developer.apple.com/account/resources/identifiers/list).
 
-**Manual upload (optional):** Codemagic → **codemagic.yaml settings → Code signing identities** → upload iOS certificates / provisioning profiles. The YAML above auto-fetches via API, so manual upload is usually not needed.
+**If signing still fails:** Codemagic → **Team settings → Code signing identities** → **iOS certificates** → **Fetch certificate** (uses the same API key). Or add env var **`CERTIFICATE_PRIVATE_KEY`** (RSA private key PEM) in a group named `code-signing` only if you use manual `fetch-signing-files --create --certificate-key`.
 
 ---
 
@@ -85,7 +84,7 @@ Each green build is submitted for **App Store review**. When Apple approves, it 
 
 | Symptom | Fix |
 |---------|-----|
-| Code signing failed | Confirm integration label `applestoreconnectkey` and App ID exists in Apple Developer |
+| Cannot save Signing Certificates without certificate private key | Remove manual `fetch-signing-files --create` from YAML; use `ios_signing` + `xcode-project use-profiles` only |
 | No certificate | Ensure API key has App Manager role; check **fetch-signing-files** step in log |
 | No upload to Apple | YAML must include `publishing.app_store_connect` with `auth: integration` |
 | Wrong bundle ID | Must be **`com.qwantumtech.computerbeipoa`** everywhere — never `com.beipoa.*` |
