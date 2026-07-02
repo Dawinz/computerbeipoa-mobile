@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
+import 'package:beipoa_mobile/config/app_config.dart';
 import 'package:beipoa_mobile/models/checkout.dart';
-import 'package:beipoa_mobile/services/api_client.dart';
 import 'package:beipoa_mobile/services/cart_service.dart';
+import 'package:beipoa_mobile/services/whatsapp_checkout.dart';
 import 'package:beipoa_mobile/theme/app_theme.dart';
 import 'package:beipoa_mobile/utils/formatters.dart';
-import 'package:beipoa_mobile/widgets/mobile_money_sheet.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key, required this.cart});
@@ -17,7 +17,6 @@ class CheckoutScreen extends StatefulWidget {
 }
 
 class _CheckoutScreenState extends State<CheckoutScreen> {
-  final _api = ApiClient();
   final _formKey = GlobalKey<FormState>();
   var _step = 0;
   var _submitting = false;
@@ -27,73 +26,46 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   int get _shipping => calculateShipping(_subtotal);
   int get _total => calculateOrderTotal(_subtotal);
 
-  String _normalizePhone(String value) {
-    final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('255')) return '+$digits';
-    if (digits.startsWith('0')) return '+255${digits.substring(1)}';
-    if (digits.startsWith('7') || digits.startsWith('6')) return '+255$digits';
-    return value.trim();
-  }
-
-  void _continueToPayment() {
+  void _continueToReview() {
     if (_formKey.currentState?.validate() != true) return;
     _formKey.currentState!.save();
     setState(() => _step = 1);
   }
 
-  Future<void> _pay() async {
+  Future<void> _sendViaWhatsApp() async {
     _formKey.currentState?.save();
-    final paymentPhoneRaw =
-        _form.paymentPhone.trim().isEmpty ? _form.phone : _form.paymentPhone;
-    final normalizedPaymentPhone = _normalizePhone(paymentPhoneRaw);
-    if (normalizedPaymentPhone.replaceAll(RegExp(r'\D'), '').length < 9) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a valid mobile money number.')),
-      );
-      return;
-    }
-
-    final confirmed = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => MobileMoneySheet(
-        method: _form.paymentMethod,
-        paymentPhone: normalizedPaymentPhone,
-        total: _total,
-      ),
-    );
-
-    if (confirmed != true || !mounted) return;
 
     setState(() => _submitting = true);
     try {
-      final result = await _api.submitCheckout({
-        'fullName': _form.fullName.trim(),
-        'email': _form.email.trim(),
-        'phone': _normalizePhone(_form.phone),
-        'city': _form.city.trim(),
-        'region': _form.region.trim().isEmpty ? null : _form.region.trim(),
-        'addressLine1': _form.addressLine1.trim(),
-        'addressLine2': _form.addressLine2.trim().isEmpty ? null : _form.addressLine2.trim(),
-        'notes': _form.notes.trim().isEmpty ? null : _form.notes.trim(),
-        'paymentMethod': _form.paymentMethod.apiValue,
-        'paymentPhone': normalizedPaymentPhone,
-        'items': widget.cart.items
-            .map((line) => {'productId': line.productId, 'quantity': line.quantity})
-            .toList(),
-      });
+      final message = WhatsAppCheckout.buildOrderMessage(
+        customer: _form,
+        items: widget.cart.items,
+        subtotal: _subtotal,
+        shipping: _shipping,
+        total: _total,
+      );
+
+      final launched = await WhatsAppCheckout.launchOrder(message);
+      if (!mounted) return;
+
+      if (!launched) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open WhatsApp. Install WhatsApp or contact us by phone.'),
+          ),
+        );
+        return;
+      }
 
       widget.cart.clear();
-      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
-          builder: (_) => CheckoutSuccessScreen(order: CompletedOrder.fromJson(result)),
+          builder: (_) => WhatsAppCheckoutSuccessScreen(
+            customerName: _form.fullName.trim(),
+            total: _total,
+          ),
         ),
       );
-    } on ApiException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -103,7 +75,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_step == 0 ? 'Delivery details' : 'Payment'),
+        title: Text(_step == 0 ? 'Delivery details' : 'Review order'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
@@ -137,67 +109,47 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     _field('Apartment, floor (optional)', (v) => _form = _form.copyWith(addressLine2: v ?? ''), initial: _form.addressLine2),
                     _field('Order notes (optional)', (v) => _form = _form.copyWith(notes: v ?? ''), initial: _form.notes, maxLines: 3),
                   ] else ...[
-                    Text(
-                      'Pay with mobile money',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Demo checkout — no real funds are transferred.',
-                      style: TextStyle(fontSize: 13, color: context.appTextMuted),
-                    ),
-                    const SizedBox(height: 16),
-                    ...paymentProviders.map((method) {
-                      final selected = _form.paymentMethod == method;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Material(
-                          color: context.appCard,
-                          borderRadius: BorderRadius.circular(14),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(14),
-                            onTap: () => setState(() => _form = _form.copyWith(paymentMethod: method)),
-                            child: Container(
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                border: Border.all(
-                                  color: selected ? AppColors.purple : context.appBorder,
-                                  width: selected ? 2 : 1,
-                                ),
-                              ),
-                              child: Row(
+                    Card(
+                      color: AppColors.purpleSoft.withValues(alpha: 0.35),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(Icons.chat, color: Color(0xFF25D366), size: 28),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Image.asset(method.logoAsset, height: 36),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      method.label,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        color: context.appText,
-                                      ),
+                                  Text(
+                                    'Complete your order on WhatsApp',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: context.appText,
                                     ),
                                   ),
-                                  if (selected)
-                                    const Icon(Icons.check_circle, color: AppColors.purple),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    'We will receive your cart and delivery details in WhatsApp. Our team will confirm stock, delivery, and payment with you.',
+                                    style: TextStyle(fontSize: 13, color: context.appTextMuted, height: 1.4),
+                                  ),
                                 ],
                               ),
                             ),
-                          ),
+                          ],
                         ),
-                      );
-                    }),
-                    const SizedBox(height: 8),
-                    _field(
-                      'Mobile money number',
-                      (v) => _form = _form.copyWith(paymentPhone: v ?? ''),
-                      initial: _form.paymentPhone.isEmpty ? _form.phone : _form.paymentPhone,
-                      keyboard: TextInputType.phone,
-                      required: true,
+                      ),
                     ),
                     const SizedBox(height: 16),
+                    _OrderItemsCard(items: widget.cart.items),
+                    const SizedBox(height: 16),
                     _OrderSummaryCard(subtotal: _subtotal, shipping: _shipping, total: _total),
+                    const SizedBox(height: 12),
+                    Text(
+                      'WhatsApp: ${AppConfig.supportPhoneDisplay}',
+                      style: TextStyle(fontSize: 13, color: context.appTextMuted),
+                    ),
                   ],
                 ],
               ),
@@ -211,20 +163,26 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12, offset: const Offset(0, -4)),
               ],
             ),
-            child: FilledButton(
+            child: FilledButton.icon(
               onPressed: _submitting
                   ? null
                   : _step == 0
-                      ? _continueToPayment
-                      : _pay,
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-              child: _submitting
+                      ? _continueToReview
+                      : _sendViaWhatsApp,
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+                backgroundColor: _step == 1 ? const Color(0xFF25D366) : null,
+              ),
+              icon: _submitting
+                  ? const SizedBox.shrink()
+                  : Icon(_step == 0 ? Icons.arrow_forward : Icons.chat),
+              label: _submitting
                   ? const SizedBox(
                       width: 22,
                       height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
-                  : Text(_step == 0 ? 'Continue to payment' : 'Pay ${formatPrice('$_total')}'),
+                  : Text(_step == 0 ? 'Review order' : 'Send order via WhatsApp'),
             ),
           ),
         ],
@@ -268,30 +226,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 }
 
-class CheckoutSuccessScreen extends StatelessWidget {
-  const CheckoutSuccessScreen({super.key, required this.order});
+class WhatsAppCheckoutSuccessScreen extends StatelessWidget {
+  const WhatsAppCheckoutSuccessScreen({
+    super.key,
+    required this.customerName,
+    required this.total,
+  });
 
-  final CompletedOrder order;
+  final String customerName;
+  final int total;
 
   @override
   Widget build(BuildContext context) {
+    final firstName = customerName.split(' ').first;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Order confirmed')),
+      appBar: AppBar(title: const Text('Order sent')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Icon(Icons.check_circle, size: 72, color: AppColors.greenAccent.withValues(alpha: 0.9)),
+          const Icon(Icons.chat, size: 72, color: Color(0xFF25D366)),
           const SizedBox(height: 16),
           Text(
-            'Thank you, ${order.customerName.split(' ').first}!',
+            'Thank you, $firstName!',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
-            'Order ${order.orderNumber}',
+            'Your order details were sent to Computer Beipoa on WhatsApp.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: context.appTextMuted),
+            style: TextStyle(color: context.appTextMuted, height: 1.4),
           ),
           const SizedBox(height: 24),
           Card(
@@ -300,10 +265,9 @@ class CheckoutSuccessScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _row('Total paid', formatPrice(order.total), bold: true),
-                  _row('Payment', order.paymentLabel),
-                  _row('Reference', order.paymentReference),
-                  _row('Deliver to', '${order.addressLine1}, ${order.city}'),
+                  _row('Estimated total', formatPrice('$total'), bold: true),
+                  _row('Next step', 'Our team will confirm your order on WhatsApp'),
+                  _row('Support', AppConfig.supportPhoneDisplay),
                 ],
               ),
             ),
@@ -349,9 +313,9 @@ class _CheckoutSteps extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       child: Row(
         children: [
-          _dot(context, 'Delivery', active: current == 0, done: current > 0),
+          _dot(context, 'Details', active: current == 0, done: current > 0),
           Expanded(child: Container(height: 2, color: current > 0 ? AppColors.purple : context.appBorder)),
-          _dot(context, 'Payment', active: current == 1, done: false),
+          _dot(context, 'WhatsApp', active: current == 1, done: false),
         ],
       ),
     );
@@ -367,7 +331,7 @@ class _CheckoutSteps extends StatelessWidget {
           child: done
               ? const Icon(Icons.check, size: 16, color: Colors.white)
               : Text(
-                  label == 'Delivery' ? '1' : '2',
+                  label == 'Details' ? '1' : '2',
                   style: TextStyle(color: active ? Colors.white : context.appTextMuted, fontSize: 12),
                 ),
         ),
@@ -390,6 +354,45 @@ class _SectionTitle extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(fontWeight: FontWeight.bold, color: context.appText),
+      ),
+    );
+  }
+}
+
+class _OrderItemsCard extends StatelessWidget {
+  const _OrderItemsCard({required this.items});
+
+  final List<CartLine> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Items (${items.length})', style: TextStyle(fontWeight: FontWeight.bold, color: context.appText)),
+            const SizedBox(height: 10),
+            ...items.map(
+              (line) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${line.name} x${line.quantity}',
+                        style: TextStyle(color: context.appText),
+                      ),
+                    ),
+                    Text(formatPrice('${line.lineTotal.round()}'), style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

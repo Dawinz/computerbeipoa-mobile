@@ -1,7 +1,7 @@
 name: beipoa_mobile
 description: Computer Beipoa — shop laptops, desktops, and office equipment.
 publish_to: 'none'
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.11.4

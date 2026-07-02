@@ -132,10 +132,10 @@ class AccountScreen extends StatelessWidget {
                 ),
                 Divider(height: 1, color: context.appBorder),
                 ListTile(
-                  leading: const Icon(Icons.payments_outlined, color: AppColors.orange),
-                  title: Text('Mobile money checkout', style: TextStyle(color: context.appText)),
+                  leading: const Icon(Icons.chat, color: Color(0xFF25D366)),
+                  title: Text('WhatsApp checkout', style: TextStyle(color: context.appText)),
                   subtitle: Text(
-                    'M-Pesa, Tigo Pesa & Airtel Money',
+                    'Send your cart to ${AppConfig.supportPhoneDisplay} to complete your order',
                     style: TextStyle(color: context.appTextMuted),
                   ),
                 ),

@@ -163,7 +163,7 @@ class CartScreen extends StatelessWidget {
                       );
                     },
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(50)),
-                    child: const Text('Proceed to checkout'),
+                    child: const Text('Checkout via WhatsApp'),
                   ),
                   TextButton(
                     onPressed: cart.clear,
